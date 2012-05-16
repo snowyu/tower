@@ -7,6 +7,7 @@ _path   = require 'path'
 File    = require('pathfinder').File
 {exec, spawn}  = require 'child_process'
 sys     = require 'util'
+{print}       = require 'util'
 require 'underscore.logger'
 
 VERSION       = JSON.parse(require("fs").readFileSync(require("path").normalize("#{__dirname}/package.json"))).version
@@ -29,6 +30,7 @@ JS_COPYRIGHT  = """
 
 compileFile = (root, path, check) ->
   try
+    console.log path
     data = fs.readFileSync path, 'utf-8'
     # total hack, built 10 minutes at a time over a few months, needs to be rethought, but works
     data = data.replace /require '([^']+)'\n/g, (_, _path) ->
@@ -153,6 +155,7 @@ task 'build-generic', ->
   result  = ''
 
   iterate = (path, next) ->
+    console.log 'enter:'+path
     if path.match(/\.coffee$/) && !path.match(/(middleware|application|generator|asset|command|spec|store|path)/)
       fs.readFile path, 'utf-8', (error, data) ->
         if !data || data.match(/Bud1/)
@@ -209,3 +212,21 @@ task 'clean', 'remove trailing whitespace', ->
   findit.find "./src", (file) ->
     if File.isFile(file)
       fs.writeFileSync(file, fs.readFileSync(file, "utf-8").toString().replace(/[ \t]+$/mg, ""))
+
+compileCoffee = (watch, callback) ->
+  if typeof watch is 'function'
+    callback = watch
+    watch = false
+  options = ['-c', '-o', 'lib', 'src']
+  options.unshift '-w' if watch
+
+  coffee = spawn 'coffee', options
+  coffee.stdout.on 'data', (data) -> print data.toString()
+  coffee.stderr.on 'data', (data) -> print data.toString()
+  coffee.on 'exit', (status) -> callback?() if status is 0
+
+task 'lib', 'Compile CoffeeScript source files to lib', ->
+  compileCoffee()
+
+task 'watch', 'Recompile CoffeeScript source files when modified', ->
+  compileCoffee true
